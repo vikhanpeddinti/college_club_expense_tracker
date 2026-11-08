@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blockchain-Based College Club Expense Tracker</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Ethers.js v6 CDN for vanilla JavaScript frontend -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-icon">🎓</div>
+        <div>
+          <h1>College Club Expense Tracker</h1>
+          <p class="tagline">Ethereum Sepolia Ledger & Supabase Database Mirror</p>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <!-- Network Badge -->
+        <div id="networkBadge" class="badge badge-network">
+          <span class="status-dot"></span>
+          <span id="networkName">Checking Network...</span>
+        </div>
+
+        <!-- Role Badge -->
+        <div id="roleBadge" class="badge badge-role hidden">
+          <span id="roleLabel">Role</span>
+        </div>
+
+        <!-- Connect Wallet Button -->
+        <button id="connectWalletBtn" class="btn btn-primary">
+          <span id="connectBtnIcon">🦊</span>
+          <span id="connectBtnText">Connect Wallet</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <!-- Academic Project Notice & Warning Banner -->
+    <section class="banner alert-info">
+      <div class="banner-icon">ℹ️</div>
+      <div class="banner-content">
+        <strong>Academic Mini-Project (20-Mark Demo):</strong> All expenditures are recorded in
+        <strong>Indian Rupees (INR)</strong> and converted to integer <strong>paise</strong> (1 INR = 100 paise)
+        on the public Ethereum Sepolia testnet.
+        <span class="warning-text">⚠️ Public blockchain data is immutable and transparent. Please use fictional, non-sensitive demo data only.</span>
+      </div>
+    </section>
+
+    <!-- Notification / Status Banner -->
+    <div id="notificationBanner" class="notification hidden">
+      <div class="notification-body">
+        <span id="notifIcon" class="notif-icon">⏳</span>
+        <div id="notifText" class="notif-text">Status message</div>
+      </div>
+      <button id="notifCloseBtn" class="btn-icon">&times;</button>
+    </div>
+
+    <!-- Club Overview & Budget Cards -->
+    <section class="section-budget">
+      <div class="section-header">
+        <h2 id="clubHeading">Club Budget Overview</h2>
+        <span id="contractAddressDisplay" class="contract-chip">Contract: Not loaded</span>
+      </div>
+
+      <div class="budget-grid">
+        <div class="card stat-card">
+          <div class="stat-label">Total Allocated Budget</div>
+          <div id="totalBudgetValue" class="stat-value">₹0.00</div>
+          <div id="totalBudgetPaise" class="stat-sub">0 paise</div>
+        </div>
+
+        <div class="card stat-card">
+          <div class="stat-label">Approved Expenditure</div>
+          <div id="approvedBudgetValue" class="stat-value stat-spent">₹0.00</div>
+          <div id="approvedBudgetPaise" class="stat-sub">0 paise approved</div>
+        </div>
+
+        <div class="card stat-card">
+          <div class="stat-label">Remaining Available Budget</div>
+          <div id="remainingBudgetValue" class="stat-value stat-remaining">₹0.00</div>
+          <div id="remainingBudgetPaise" class="stat-sub">0 paise remaining</div>
+        </div>
+      </div>
+
+      <!-- Budget Progress Bar -->
+      <div class="budget-progress-container">
+        <div class="progress-labels">
+          <span>Budget Utilization</span>
+          <span id="budgetPercentText">0% Used</span>
+        </div>
+        <div class="progress-track">
+          <div id="budgetProgressBar" class="progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Submit Expense Form (Any Member) -->
+    <section class="card section-form">
+      <div class="form-header">
+        <div>
+          <h3>Submit Demo Expense Request</h3>
+          <p class="form-sub">Any connected club member wallet can propose an expenditure.</p>
+        </div>
+        <span class="pill-member">Role: Club Member</span>
+      </div>
+
+      <form id="submitExpenseForm">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="expenseAmount">Amount in INR (₹) <span class="required">*</span></label>
+            <div class="input-prefix-wrapper">
+              <span class="input-prefix">₹</span>
+              <input
+                type="number"
+                id="expenseAmount"
+                name="expenseAmount"
+                placeholder="e.g. 500"
+                min="1"
+                step="0.01"
+                required
+              />
+            </div>
+            <small id="paiseHelper" class="helper-text">Equivalent: 0 paise</small>
+          </div>
+
+          <div class="form-group">
+            <label for="expensePurpose">Purpose / Description <span class="required">*</span></label>
+            <input
+              type="text"
+              id="expensePurpose"
+              name="expensePurpose"
+              placeholder="e.g. Arduino kits & sensors for robotics workshop"
+              maxlength="120"
+              required
+            />
+            <small class="helper-text"><span id="charCount">0</span>/120 characters (Stored on-chain)</small>
+          </div>
+        </div>
+
+        <div class="form-footer">
+          <div class="form-note">
+            💡 Submitting broadcasts a transaction to Sepolia. Once mined, it appears as <strong>Pending</strong>.
+          </div>
+          <button type="submit" id="submitExpenseBtn" class="btn btn-primary" disabled>
+            <span id="submitSpinner" class="spinner hidden"></span>
+            <span>Submit to Blockchain</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Expense Ledger / Table (With Search, Filter & Approver Actions) -->
+    <section class="card section-table">
+      <div class="table-toolbar">
+        <div>
+          <h3>Club Expense Ledger</h3>
+          <p class="form-sub">Authoritative on-chain records mirrored in Supabase.</p>
+        </div>
+
+        <div class="table-controls">
+          <!-- Search Box -->
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Search purpose or address..."
+            class="search-input"
+          />
+
+          <!-- Filter Dropdown -->
+          <select id="statusFilter" class="filter-select">
+            <option value="ALL">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+
+          <!-- Refresh Button -->
+          <button id="refreshBtn" class="btn btn-secondary" title="Refresh records from blockchain">
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Database Sync Status Pill -->
+      <div class="mirror-status-bar">
+        <span id="syncStatusBadge" class="sync-badge">
+          <span class="sync-dot"></span>
+          <span id="syncStatusText">Checking database mirror status...</span>
+        </span>
+        <span id="recordCountText" class="record-count">0 expenses</span>
+      </div>
+
+      <!-- Expense Table -->
+      <div class="table-responsive">
+        <table class="expense-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">ID</th>
+              <th style="width: 140px;">Submitter</th>
+              <th style="width: 130px;">Amount</th>
+              <th>Purpose</th>
+              <th style="width: 110px;">Status</th>
+              <th style="width: 90px;">Tx Hash</th>
+              <th style="width: 180px; text-align: center;">Approver Actions</th>
+            </tr>
+          </thead>
+          <tbody id="expenseTableBody">
+            <tr class="empty-row">
+              <td colspan="7">Connect wallet or deploy contract to view expenses.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-container">
+      <p>
+        <strong>Blockchain-Based College Club Expense Tracker</strong> • Academic Mini-Project
+      </p>
+      <p class="footer-sub">
+        Solidity Smart Contract • Ethereum Sepolia Testnet • Supabase PostgreSQL • Vercel Serverless
+      </p>
+      <p id="contractLinkContainer" class="footer-links"></p>
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
+

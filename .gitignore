@@ -1,0 +1,28 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment and sensitive keys (NEVER commit private keys or API secrets!)
+.env
+.env.local
+.env.*.local
+*.pem
+private_key*
+
+# Hardhat build artifacts and cache
+artifacts/
+cache/
+.appdata/
+typechain/
+typechain-types/
+coverage/
+coverage.json
+
+# Vercel deployment cache
+.vercel/
+
+# OS metadata
+.DS_Store
+Thumbs.db
