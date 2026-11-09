@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,6 +9,7 @@
   <!-- Ethers.js v6 CDN for vanilla JavaScript frontend -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
 </head>
+
 <body>
   <!-- Header Bar -->
   <header class="navbar">
@@ -42,16 +44,6 @@
   </header>
 
   <main class="main-container">
-    <!-- Academic Project Notice & Warning Banner -->
-    <section class="banner alert-info">
-      <div class="banner-icon">ℹ️</div>
-      <div class="banner-content">
-        <strong>Academic Mini-Project (20-Mark Demo):</strong> All expenditures are recorded in
-        <strong>Indian Rupees (INR)</strong> and converted to integer <strong>paise</strong> (1 INR = 100 paise)
-        on the public Ethereum Sepolia testnet.
-        <span class="warning-text">⚠️ Public blockchain data is immutable and transparent. Please use fictional, non-sensitive demo data only.</span>
-      </div>
-    </section>
 
     <!-- Notification / Status Banner -->
     <div id="notificationBanner" class="notification hidden">
@@ -117,29 +109,16 @@
             <label for="expenseAmount">Amount in INR (₹) <span class="required">*</span></label>
             <div class="input-prefix-wrapper">
               <span class="input-prefix">₹</span>
-              <input
-                type="number"
-                id="expenseAmount"
-                name="expenseAmount"
-                placeholder="e.g. 500"
-                min="1"
-                step="0.01"
-                required
-              />
+              <input type="number" id="expenseAmount" name="expenseAmount" placeholder="e.g. 500" min="1" step="0.01"
+                required />
             </div>
             <small id="paiseHelper" class="helper-text">Equivalent: 0 paise</small>
           </div>
 
           <div class="form-group">
             <label for="expensePurpose">Purpose / Description <span class="required">*</span></label>
-            <input
-              type="text"
-              id="expensePurpose"
-              name="expensePurpose"
-              placeholder="e.g. Arduino kits & sensors for robotics workshop"
-              maxlength="120"
-              required
-            />
+            <input type="text" id="expensePurpose" name="expensePurpose"
+              placeholder="e.g. Arduino kits & sensors for robotics workshop" maxlength="120" required />
             <small class="helper-text"><span id="charCount">0</span>/120 characters (Stored on-chain)</small>
           </div>
         </div>
@@ -166,12 +145,7 @@
 
         <div class="table-controls">
           <!-- Search Box -->
-          <input
-            type="text"
-            id="searchInput"
-            placeholder="Search purpose or address..."
-            class="search-input"
-          />
+          <input type="text" id="searchInput" placeholder="Search purpose or address..." class="search-input" />
 
           <!-- Filter Dropdown -->
           <select id="statusFilter" class="filter-select">
@@ -237,5 +211,5 @@
   <!-- Application Logic -->
   <script src="app.js"></script>
 </body>
-</html>
 
+</html>
