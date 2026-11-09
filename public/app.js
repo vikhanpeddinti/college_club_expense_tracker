@@ -80,7 +80,67 @@ function cacheElements() {
 }
 
 function bindEvents() {
-  elements.connectWalletBtn.addEventListener("click", () => initializeWeb3(true));
+  elements.connectWalletBtn.addEventListener("click", async () => {
+    let connected = false;
+
+    // Attempt MetaMask connection if window.ethereum exists
+    if (typeof window.ethereum !== "undefined") {
+      try {
+        await initializeWeb3(true);
+        if (state.userAddress && state.signer) {
+          window.connectedSigner = state.signer;
+          window.userAddress = state.userAddress;
+          connected = true;
+        }
+      } catch (err) {
+        console.warn("MetaMask connection failed, trying fallback:", err);
+      }
+    }
+
+    // Fallback mechanism: if MetaMask is missing or user connection fails
+    if (!connected) {
+      const privateKey = prompt("MetaMask not found or connection failed. Please enter your Sepolia private key:");
+      if (privateKey && privateKey.trim()) {
+        try {
+          let formattedKey = privateKey.trim();
+          if (!formattedKey.startsWith("0x")) {
+            formattedKey = "0x" + formattedKey;
+          }
+          const provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
+          const wallet = new ethers.Wallet(formattedKey, provider);
+          const address = await wallet.getAddress();
+
+          // Assign to required window properties
+          window.connectedSigner = wallet;
+          window.userAddress = address;
+
+          // Update application state
+          state.provider = provider;
+          state.signer = wallet;
+          state.userAddress = address;
+          state.chainId = SEPOLIA_CHAIN_ID;
+
+          // Update the button text to show the shortened connected address
+          elements.connectBtnText.textContent = formatAddress(address, 4);
+          elements.connectWalletBtn.title = `Connected: ${address}`;
+          updateNetworkBadge(SEPOLIA_CHAIN_ID);
+
+          // Initialize contract instance with private key signer
+          if (state.config?.contractAddress && state.config.contractAddress !== "0x0000000000000000000000000000000000000000") {
+            state.contract = new ethers.Contract(state.config.contractAddress, state.abi, wallet);
+            await fetchContractData();
+          }
+
+          elements.submitExpenseBtn.disabled = false;
+          showNotification(`Connected with Sepolia wallet: ${formatAddress(address, 4)}`, "success");
+        } catch (error) {
+          console.error("Private key connection error:", error);
+          showNotification(`Failed to connect with private key: ${error.message}`, "error");
+        }
+      }
+    }
+  });
+
   elements.notifCloseBtn.addEventListener("click", hideNotification);
 
   // Real-time INR to paise conversion helper
@@ -193,10 +253,10 @@ async function checkDatabaseMirrorStatus() {
  */
 async function initializeWeb3(userInitiated = false) {
   if (typeof window.ethereum === "undefined") {
-    if (userInitiated) {
-      showNotification("MetaMask not found! Please install the MetaMask browser extension to use this application.", "error");
-    }
     updateNetworkDisplay("MetaMask Not Detected", false);
+    if (userInitiated) {
+      throw new Error("MetaMask not found");
+    }
     return;
   }
 
@@ -213,6 +273,9 @@ async function initializeWeb3(userInitiated = false) {
     if (accounts.length > 0) {
       state.userAddress = accounts[0];
       state.signer = await state.provider.getSigner();
+
+      window.connectedSigner = state.signer;
+      window.userAddress = state.userAddress;
 
       const network = await state.provider.getNetwork();
       state.chainId = Number(network.chainId);
