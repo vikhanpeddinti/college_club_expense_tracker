@@ -36,8 +36,11 @@
 
         <!-- Connect Wallet Button -->
         <button id="connectWalletBtn" class="btn btn-primary">
-          <span id="connectBtnIcon">🦊</span>
+          <span id="connectBtnIcon">👛</span>
           <span id="connectBtnText">Connect Wallet</span>
+        </button>
+        <button id="disconnectWalletBtn" class="btn btn-secondary btn-sm hidden" title="Disconnect current wallet">
+          Disconnect
         </button>
       </div>
     </div>
@@ -207,6 +210,99 @@
       <p id="contractLinkContainer" class="footer-links"></p>
     </div>
   </footer>
+
+  <!-- Multi-Wallet Selection Modal (RainbowKit / Web3Modal Style) -->
+  <div id="walletModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="walletModalTitle">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-wrapper">
+          <h3 id="walletModalTitle" class="modal-title">Connect a Wallet</h3>
+          <p class="modal-sub">Choose your wallet to sign transactions on Ethereum Sepolia</p>
+        </div>
+        <button id="closeWalletModalBtn" class="modal-close-btn" aria-label="Close modal">&times;</button>
+      </div>
+
+      <div class="wallet-options-list">
+        <!-- 1. MetaMask -->
+        <button type="button" class="wallet-option-item" data-wallet="metamask">
+          <div class="wallet-option-left">
+            <span class="wallet-icon">🦊</span>
+            <div class="wallet-details">
+              <span class="wallet-name">MetaMask</span>
+              <span class="wallet-desc">Most popular Ethereum browser extension</span>
+            </div>
+          </div>
+          <span class="wallet-badge" id="badge-metamask">Detecting...</span>
+        </button>
+
+        <!-- 2. Coinbase Wallet -->
+        <button type="button" class="wallet-option-item" data-wallet="coinbase">
+          <div class="wallet-option-left">
+            <span class="wallet-icon">🔵</span>
+            <div class="wallet-details">
+              <span class="wallet-name">Coinbase Wallet</span>
+              <span class="wallet-desc">Smart wallet & browser extension</span>
+            </div>
+          </div>
+          <span class="wallet-badge" id="badge-coinbase">Detecting...</span>
+        </button>
+
+        <!-- 3. Trust Wallet -->
+        <button type="button" class="wallet-option-item" data-wallet="trust">
+          <div class="wallet-option-left">
+            <span class="wallet-icon">🛡️</span>
+            <div class="wallet-details">
+              <span class="wallet-name">Trust Wallet</span>
+              <span class="wallet-desc">Multi-chain mobile & extension</span>
+            </div>
+          </div>
+          <span class="wallet-badge" id="badge-trust">Detecting...</span>
+        </button>
+
+        <!-- 4. Rabby Wallet -->
+        <button type="button" class="wallet-option-item" data-wallet="rabby">
+          <div class="wallet-option-left">
+            <span class="wallet-icon">🐰</span>
+            <div class="wallet-details">
+              <span class="wallet-name">Rabby Wallet</span>
+              <span class="wallet-desc">Game-changing EVM browser wallet</span>
+            </div>
+          </div>
+          <span class="wallet-badge" id="badge-rabby">Detecting...</span>
+        </button>
+
+        <!-- 5. WalletConnect -->
+        <button type="button" class="wallet-option-item" data-wallet="walletconnect">
+          <div class="wallet-option-left">
+            <span class="wallet-icon">🌐</span>
+            <div class="wallet-details">
+              <span class="wallet-name">WalletConnect</span>
+              <span class="wallet-desc">Scan with Rainbow, Zerion, or any mobile wallet</span>
+            </div>
+          </div>
+          <span class="wallet-badge badge-wc">QR / Mobile</span>
+        </button>
+
+        <!-- 6. Sepolia Private Key (Demo / Viva Fallback) -->
+        <button type="button" class="wallet-option-item wallet-option-fallback" data-wallet="privatekey">
+          <div class="wallet-option-left">
+            <span class="wallet-icon">🔑</span>
+            <div class="wallet-details">
+              <span class="wallet-name">Sepolia Private Key</span>
+              <span class="wallet-desc">Fast demo testing without browser extensions</span>
+            </div>
+          </div>
+          <span class="wallet-badge badge-demo">Demo Mode</span>
+        </button>
+      </div>
+
+      <div class="modal-footer">
+        <p class="modal-footer-note">
+          🔒 Public Sepolia RPC active for viewing budgets and records. Wallet connection is only required when submitting or approving expenses.
+        </p>
+      </div>
+    </div>
+  </div>
 
   <!-- Application Logic -->
   <script src="app.js"></script>

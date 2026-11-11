@@ -30,8 +30,10 @@ Traditional club expense tracking relies on error-prone spreadsheets or centrali
                                   |                                  |                               |
                                   v                                  v                               v
            +------------------------------+   +------------------------------+   +-----------------------+
-           | Public Sepolia JSON-RPC      |   | MetaMask Web3 Provider       |   | Vercel Serverless     |
-           | (ethereum-sepolia-rpc...)    |   | (or Private-Key Fallback)    |   | /api/sync Endpoint    |
+           | Public Sepolia JSON-RPC      |   | Multi-Wallet Manager         |   | Vercel Serverless     |
+           | (ethereum-sepolia-rpc...)    |   | - MetaMask / Rabby           |   | /api/sync Endpoint    |
+           |                              |   | - Coinbase / Trust Wallet    |   |                       |
+           |                              |   | - WalletConnect (QR/Mobile)  |   |                       |
            +--------------+---------------+   +--------------+---------------+   +-----------+-----------+
                           |                                  |                               |
                           | (Queries Summary & Expenses)     | (Signs & Broadcasts Tx)       | (Validates Tx Receipt
@@ -55,13 +57,19 @@ Traditional club expense tracking relies on error-prone spreadsheets or centrali
 
 1. **Lane 1: Public Sepolia RPC Read-Only Provider (Page Load)**
    - On `DOMContentLoaded`, the frontend initializes an `ethers.JsonRpcProvider` with `https://ethereum-sepolia-rpc.publicnode.com`.
-   - Immediately queries `getClubSummary()` and `getAllExpenses()` without touching MetaMask.
-   - **Key Benefit:** Any visitor (even without MetaMask installed or on a different network) sees the live budget cards, progress bar, and complete expense ledger instantly with **zero popups, zero connection errors, and zero network mismatch warnings**.
+   - Immediately queries `getClubSummary()` and `getAllExpenses()` without triggering any wallet extensions.
+   - **Key Benefit:** Any visitor (even without any wallet installed or on a different chain) sees the live budget cards, progress bar, and complete expense ledger instantly with **zero popups, zero connection errors, and zero network mismatch warnings**.
 
-2. **Lane 2: Explicit User-Gated Write Lane (MetaMask & Fallback Signer)**
-   - MetaMask is invoked **strictly upon user action**: clicking *"Submit to Blockchain"*, *"Approve"*, *"Reject"*, or *"Connect Wallet"*.
-   - Automatically detects network and prompts switching to Sepolia (Chain ID `11155111`) only when a transaction is about to be sent.
-   - Includes a fallback browser prompt for Sepolia private-key signing (for headless demo environments or testing without MetaMask).
+2. **Lane 2: Explicit User-Gated Multi-Wallet Write Lane**
+   - Features a clean, unified **Connect Wallet Modal** supporting:
+     - 🦊 **MetaMask** (Injected & EIP-6963 provider)
+     - 🔵 **Coinbase Wallet** (Injected extension & mobile)
+     - 🛡️ **Trust Wallet** (Multi-chain browser & mobile)
+     - 🐰 **Rabby Wallet** (EVM-native browser wallet)
+     - 🌐 **WalletConnect** (QR code scan for Rainbow, Zerion, and mobile wallets)
+     - 🔑 **Sepolia Private Key** (Academic demo fallback)
+   - Employs **EIP-6963 Provider Discovery** to dynamically detect installed extensions and eliminate multi-wallet injection conflicts.
+   - Invoked strictly when a user attempts an on-chain action (*"Submit to Blockchain"*, *"Approve"*, *"Reject"*, or *"Connect Wallet"*).
 
 3. **Lane 3: Verified Serverless Sync Engine (`/api/sync` on Vercel)**
    - After an on-chain transaction confirms, the frontend passes `{ txHash, expenseId, action }` to `/api/sync`.

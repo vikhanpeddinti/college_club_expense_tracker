@@ -3,6 +3,7 @@
   "chainId": 11155111,
   "networkName": "sepolia",
   "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+  "walletConnectProjectId": "",
   "clubName": "College Tech Club",
   "initialBudgetPaise": "1000000",
   "initialBudgetINR": 10000,
