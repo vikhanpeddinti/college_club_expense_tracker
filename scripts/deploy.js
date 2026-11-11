@@ -44,6 +44,7 @@ async function main() {
     contractAddress: contractAddress,
     chainId: hre.network.config.chainId || 11155111,
     networkName: hre.network.name,
+    rpcUrl: process.env.SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
     clubName: clubName,
     initialBudgetPaise: initialBudgetPaise.toString(),
     initialBudgetINR: budgetInINR,

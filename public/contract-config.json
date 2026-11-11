@@ -2,6 +2,7 @@
   "contractAddress": "0x96a9d4B3eD9ca573c53bb7066437D0278133DB12",
   "chainId": 11155111,
   "networkName": "sepolia",
+  "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
   "clubName": "College Tech Club",
   "initialBudgetPaise": "1000000",
   "initialBudgetINR": 10000,

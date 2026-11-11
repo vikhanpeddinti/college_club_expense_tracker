@@ -1,13 +1,22 @@
 /**
  * Blockchain-Based College Club Expense Tracker
  * Frontend Client Application (Vanilla JavaScript + Ethers.js v6)
+ *
+ * ARCHITECTURE:
+ * - Read-Only Operations (Page Load): Uses a public Sepolia JSON-RPC provider.
+ *   Fetches club summary, budget, and expenses immediately without triggering
+ *   unwanted MetaMask popups, connection dialogs, or network warnings.
+ * - Write Operations (Submit / Approve / Reject): Triggered strictly on explicit
+ *   user action, prompting MetaMask (or private-key fallback) only when needed.
  */
 
 // Application State
 const state = {
+  readOnlyProvider: null,
+  readOnlyContract: null,
   provider: null,
   signer: null,
-  contract: null,
+  contract: null, // Write contract instance (with signer)
   userAddress: null,
   approverAddress: null,
   isApprover: false,
@@ -29,6 +38,7 @@ const state = {
 const SEPOLIA_CHAIN_ID = 11155111;
 const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7";
 const LOCAL_CHAIN_ID = 31337;
+const DEFAULT_SEPOLIA_RPC = "https://ethereum-sepolia-rpc.publicnode.com";
 
 // DOM Elements Cache
 const elements = {};
@@ -37,8 +47,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   cacheElements();
   bindEvents();
   await loadContractConfigAndABI();
+  initReadOnlyContract();
   await checkDatabaseMirrorStatus();
-  await initializeWeb3(false); // passive check
+  await fetchContractData(false); // Immediate read-only fetch via public RPC
+  elements.submitExpenseBtn.disabled = false; // Ready for submission (triggers wallet on click)
+  await checkExistingConnectionSilently(); // Silent check for already authorized wallets
 });
 
 function cacheElements() {
@@ -80,65 +93,9 @@ function cacheElements() {
 }
 
 function bindEvents() {
+  // Explicit wallet connection button
   elements.connectWalletBtn.addEventListener("click", async () => {
-    let connected = false;
-
-    // Attempt MetaMask connection if window.ethereum exists
-    if (typeof window.ethereum !== "undefined") {
-      try {
-        await initializeWeb3(true);
-        if (state.userAddress && state.signer) {
-          window.connectedSigner = state.signer;
-          window.userAddress = state.userAddress;
-          connected = true;
-        }
-      } catch (err) {
-        console.warn("MetaMask connection failed, trying fallback:", err);
-      }
-    }
-
-    // Fallback mechanism: if MetaMask is missing or user connection fails
-    if (!connected) {
-      const privateKey = prompt("MetaMask not found or connection failed. Please enter your Sepolia private key:");
-      if (privateKey && privateKey.trim()) {
-        try {
-          let formattedKey = privateKey.trim();
-          if (!formattedKey.startsWith("0x")) {
-            formattedKey = "0x" + formattedKey;
-          }
-          const provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
-          const wallet = new ethers.Wallet(formattedKey, provider);
-          const address = await wallet.getAddress();
-
-          // Assign to required window properties
-          window.connectedSigner = wallet;
-          window.userAddress = address;
-
-          // Update application state
-          state.provider = provider;
-          state.signer = wallet;
-          state.userAddress = address;
-          state.chainId = SEPOLIA_CHAIN_ID;
-
-          // Update the button text to show the shortened connected address
-          elements.connectBtnText.textContent = formatAddress(address, 4);
-          elements.connectWalletBtn.title = `Connected: ${address}`;
-          updateNetworkBadge(SEPOLIA_CHAIN_ID);
-
-          // Initialize contract instance with private key signer
-          if (state.config?.contractAddress && state.config.contractAddress !== "0x0000000000000000000000000000000000000000") {
-            state.contract = new ethers.Contract(state.config.contractAddress, state.abi, wallet);
-            await fetchContractData();
-          }
-
-          elements.submitExpenseBtn.disabled = false;
-          showNotification(`Connected with Sepolia wallet: ${formatAddress(address, 4)}`, "success");
-        } catch (error) {
-          console.error("Private key connection error:", error);
-          showNotification(`Failed to connect with private key: ${error.message}`, "error");
-        }
-      }
-    }
+    await ensureWalletConnected();
   });
 
   elements.notifCloseBtn.addEventListener("click", hideNotification);
@@ -209,7 +166,7 @@ async function loadContractConfigAndABI() {
       "function rejectExpense(uint256 _id)",
       "event ExpenseSubmitted(uint256 indexed id, address indexed submitter, uint256 amount, string purpose, uint256 timestamp)",
       "event ExpenseApproved(uint256 indexed id, address indexed submitter, uint256 amount, uint256 remainingBudget, uint256 timestamp)",
-      "event ExpenseRejected(uint256 indexed id, address indexed submitter, uint256 amount, uint256 timestamp)"
+      "event ExpenseRejected(uint256 indexed id, address indexed submitter, uint256 amount, uint256 timestamp)",
     ];
   }
 
@@ -228,7 +185,35 @@ async function loadContractConfigAndABI() {
 }
 
 /**
- * 2. Check Supabase Database Mirror Status via /api/sync
+ * 2. Public Sepolia RPC Read-Only Contract Initialization
+ * Completely decoupled from MetaMask - executes silently on page load.
+ */
+function getRpcUrl() {
+  return state.config?.rpcUrl || DEFAULT_SEPOLIA_RPC;
+}
+
+function initReadOnlyContract() {
+  if (!state.config?.contractAddress || state.config.contractAddress === "0x0000000000000000000000000000000000000000") {
+    console.warn("Contract address not configured yet.");
+    return false;
+  }
+
+  try {
+    const rpcUrl = getRpcUrl();
+    state.readOnlyProvider = new ethers.JsonRpcProvider(rpcUrl);
+    state.readOnlyContract = new ethers.Contract(state.config.contractAddress, state.abi, state.readOnlyProvider);
+
+    // Initial badge reflects Sepolia public RPC status
+    updateNetworkDisplay("Sepolia (Public RPC)", true);
+    return true;
+  } catch (err) {
+    console.error("Failed to initialize public read-only RPC provider:", err);
+    return false;
+  }
+}
+
+/**
+ * 3. Check Supabase Database Mirror Status via /api/sync
  */
 async function checkDatabaseMirrorStatus() {
   try {
@@ -249,125 +234,21 @@ async function checkDatabaseMirrorStatus() {
 }
 
 /**
- * 3. Initialize Web3 / MetaMask
- */
-async function initializeWeb3(userInitiated = false) {
-  if (typeof window.ethereum === "undefined") {
-    updateNetworkDisplay("MetaMask Not Detected", false);
-    if (userInitiated) {
-      throw new Error("MetaMask not found");
-    }
-    return;
-  }
-
-  try {
-    state.provider = new ethers.BrowserProvider(window.ethereum);
-
-    let accounts = [];
-    if (userInitiated) {
-      accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-    } else {
-      accounts = await window.ethereum.request({ method: "eth_accounts" });
-    }
-
-    if (accounts.length > 0) {
-      state.userAddress = accounts[0];
-      state.signer = await state.provider.getSigner();
-
-      window.connectedSigner = state.signer;
-      window.userAddress = state.userAddress;
-
-      const network = await state.provider.getNetwork();
-      state.chainId = Number(network.chainId);
-
-      updateWalletDisplay(state.userAddress);
-      updateNetworkBadge(state.chainId);
-
-      // Initialize contract instance
-      if (state.config?.contractAddress && state.config.contractAddress !== "0x0000000000000000000000000000000000000000") {
-        state.contract = new ethers.Contract(state.config.contractAddress, state.abi, state.signer);
-        await fetchContractData();
-      }
-
-      elements.submitExpenseBtn.disabled = false;
-    } else {
-      updateNetworkDisplay("Wallet Disconnected", false);
-    }
-  } catch (err) {
-    console.error("Wallet initialization error:", err);
-    if (userInitiated) {
-      showNotification(`Failed to connect wallet: ${err.message}`, "error");
-    }
-  }
-
-  // Set up listeners for wallet events (only once)
-  if (!window._listenersBound && window.ethereum) {
-    window.ethereum.on("accountsChanged", handleAccountsChanged);
-    window.ethereum.on("chainChanged", () => window.location.reload());
-    window._listenersBound = true;
-  }
-}
-
-function handleAccountsChanged(accounts) {
-  if (accounts.length === 0) {
-    state.userAddress = null;
-    state.signer = null;
-    elements.connectBtnText.textContent = "Connect Wallet";
-    elements.roleBadge.classList.add("hidden");
-    elements.submitExpenseBtn.disabled = true;
-    showNotification("Wallet disconnected.", "pending");
-  } else {
-    state.userAddress = accounts[0];
-    updateWalletDisplay(state.userAddress);
-    fetchContractData();
-  }
-}
-
-function updateWalletDisplay(address) {
-  elements.connectBtnText.textContent = formatAddress(address, 4);
-  elements.connectWalletBtn.title = `Connected: ${address}`;
-}
-
-function updateNetworkBadge(chainId) {
-  const dot = elements.networkBadge.querySelector(".status-dot");
-  dot.className = "status-dot";
-
-  if (chainId === SEPOLIA_CHAIN_ID) {
-    elements.networkName.textContent = "Sepolia Testnet";
-    dot.classList.add("active");
-  } else if (chainId === LOCAL_CHAIN_ID) {
-    elements.networkName.textContent = "Localhost Hardhat";
-    dot.classList.add("active");
-  } else {
-    elements.networkName.textContent = `Unsupported Network (${chainId})`;
-    dot.classList.add("danger");
-    showNotification(
-      `Please switch your MetaMask to Ethereum Sepolia Testnet (Chain ID ${SEPOLIA_CHAIN_ID}).`,
-      "pending"
-    );
-  }
-}
-
-function updateNetworkDisplay(name, isActive) {
-  elements.networkName.textContent = name;
-  const dot = elements.networkBadge.querySelector(".status-dot");
-  dot.className = `status-dot ${isActive ? "active" : ""}`;
-}
-
-/**
  * 4. Fetch On-Chain Data (Authoritative)
+ * Uses public RPC contract for non-intrusive reads, falls back to active contract.
  */
 async function fetchContractData(showToast = false) {
-  if (!state.contract) {
+  const targetContract = state.readOnlyContract || state.contract;
+  if (!targetContract) {
     console.warn("Contract not initialized yet.");
     return;
   }
 
   try {
-    if (showToast) showNotification("Fetching updated state from Ethereum blockchain...", "pending");
+    if (showToast) showNotification("Fetching updated state from Ethereum Sepolia...", "pending");
 
     // Fetch club summary
-    const summary = await state.contract.getClubSummary();
+    const summary = await targetContract.getClubSummary();
     state.clubSummary.name = summary[0];
     state.clubSummary.approver = summary[1];
     state.clubSummary.initialBudgetPaise = summary[2];
@@ -377,17 +258,14 @@ async function fetchContractData(showToast = false) {
 
     state.approverAddress = summary[1];
 
-    // Determine current user role
-    if (state.userAddress && state.approverAddress) {
-      state.isApprover = state.userAddress.toLowerCase() === state.approverAddress.toLowerCase();
-      updateRoleDisplay(state.isApprover);
-    }
+    // Determine current user role if wallet connected
+    checkUserRole();
 
     // Update Budget Overview Cards
     updateBudgetCards();
 
     // Fetch All Expenses from Smart Contract
-    const rawExpenses = await state.contract.getAllExpenses();
+    const rawExpenses = await targetContract.getAllExpenses();
     state.expenses = rawExpenses.map((e) => ({
       id: Number(e.id),
       submitter: e.submitter,
@@ -405,6 +283,16 @@ async function fetchContractData(showToast = false) {
   } catch (err) {
     console.error("Error fetching contract data:", err);
     if (showToast) showNotification(`Failed to query blockchain: ${err.message}`, "error");
+  }
+}
+
+function checkUserRole() {
+  if (state.userAddress && state.approverAddress) {
+    state.isApprover = state.userAddress.toLowerCase() === state.approverAddress.toLowerCase();
+    updateRoleDisplay(state.isApprover);
+  } else {
+    state.isApprover = false;
+    elements.roleBadge.classList.add("hidden");
   }
 }
 
@@ -448,15 +336,253 @@ function updateBudgetCards() {
 }
 
 /**
- * 5. Submit Expense to Blockchain
+ * 5. Silent Wallet Check (Page Load)
+ * Checks for already-authorized accounts without triggering any popups or warnings.
+ */
+async function checkExistingConnectionSilently() {
+  if (typeof window.ethereum === "undefined") return;
+
+  try {
+    const accounts = await window.ethereum.request({ method: "eth_accounts" });
+    if (accounts && accounts.length > 0) {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      const chainId = Number(network.chainId);
+
+      // Only adopt if already on Sepolia or local testnet
+      if (chainId === SEPOLIA_CHAIN_ID || chainId === LOCAL_CHAIN_ID) {
+        state.provider = provider;
+        state.signer = await provider.getSigner();
+        state.userAddress = accounts[0];
+        state.chainId = chainId;
+
+        window.connectedSigner = state.signer;
+        window.userAddress = state.userAddress;
+
+        if (state.config?.contractAddress) {
+          state.contract = new ethers.Contract(state.config.contractAddress, state.abi, state.signer);
+        }
+
+        updateWalletDisplay(state.userAddress);
+        updateNetworkBadge(state.chainId);
+        checkUserRole();
+        renderExpenseTable();
+        setupWalletListeners();
+      }
+    }
+  } catch (err) {
+    // Intentionally suppressed: zero popups or errors on page load
+    console.debug("Silent account check:", err);
+  }
+}
+
+/**
+ * 6. Explicit Wallet Connection (Write Operations Only)
+ * Triggered strictly when user clicks Connect Wallet or clicks Submit/Approve/Reject.
+ */
+async function ensureWalletConnected() {
+  if (state.signer && state.contract && state.userAddress) {
+    return true;
+  }
+
+  // 1. Attempt MetaMask connection
+  if (typeof window.ethereum !== "undefined") {
+    try {
+      showNotification("Connecting to MetaMask for write access...", "pending");
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+
+      if (accounts && accounts.length > 0) {
+        state.provider = provider;
+        state.signer = await provider.getSigner();
+        state.userAddress = accounts[0];
+
+        window.connectedSigner = state.signer;
+        window.userAddress = state.userAddress;
+
+        // Verify and switch to Sepolia if needed
+        const network = await provider.getNetwork();
+        let chainId = Number(network.chainId);
+        state.chainId = chainId;
+
+        if (chainId !== SEPOLIA_CHAIN_ID && chainId !== LOCAL_CHAIN_ID) {
+          try {
+            await window.ethereum.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
+            });
+            const updatedNetwork = await provider.getNetwork();
+            state.chainId = Number(updatedNetwork.chainId);
+          } catch (switchError) {
+            if (switchError.code === 4902) {
+              await window.ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                  {
+                    chainId: SEPOLIA_CHAIN_ID_HEX,
+                    chainName: "Ethereum Sepolia Testnet",
+                    nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+                    rpcUrls: [getRpcUrl()],
+                    blockExplorerUrls: ["https://sepolia.etherscan.io"],
+                  },
+                ],
+              });
+              const updatedNetwork = await provider.getNetwork();
+              state.chainId = Number(updatedNetwork.chainId);
+            } else {
+              throw switchError;
+            }
+          }
+        }
+
+        updateWalletDisplay(state.userAddress);
+        updateNetworkBadge(state.chainId);
+
+        // Bind write contract instance
+        if (state.config?.contractAddress) {
+          state.contract = new ethers.Contract(state.config.contractAddress, state.abi, state.signer);
+        }
+
+        checkUserRole();
+        renderExpenseTable();
+        setupWalletListeners();
+
+        showNotification(`Wallet connected: ${formatAddress(state.userAddress, 4)}`, "success");
+        return true;
+      }
+    } catch (err) {
+      console.warn("MetaMask connection failed or cancelled:", err);
+      if (err.code === 4001) {
+        showNotification("MetaMask connection request was cancelled.", "error");
+        return false;
+      }
+    }
+  }
+
+  // 2. Fallback: prompt for Sepolia private key
+  return await connectWithPrivateKeyFallback();
+}
+
+/**
+ * Fallback: Connect via browser prompt for Sepolia private key
+ */
+async function connectWithPrivateKeyFallback() {
+  const privateKey = prompt("MetaMask not found or connection failed. Please enter your Sepolia private key for write operations:");
+  if (!privateKey || !privateKey.trim()) {
+    showNotification("Wallet connection cancelled.", "pending");
+    return false;
+  }
+
+  try {
+    let formattedKey = privateKey.trim();
+    if (!formattedKey.startsWith("0x")) {
+      formattedKey = "0x" + formattedKey;
+    }
+
+    const rpcUrl = getRpcUrl();
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const wallet = new ethers.Wallet(formattedKey, provider);
+    const address = await wallet.getAddress();
+
+    // Assign to required window properties
+    window.connectedSigner = wallet;
+    window.userAddress = address;
+
+    // Update application state
+    state.provider = provider;
+    state.signer = wallet;
+    state.userAddress = address;
+    state.chainId = SEPOLIA_CHAIN_ID;
+
+    // Bind write contract instance
+    if (state.config?.contractAddress) {
+      state.contract = new ethers.Contract(state.config.contractAddress, state.abi, wallet);
+    }
+
+    updateWalletDisplay(address);
+    updateNetworkBadge(SEPOLIA_CHAIN_ID);
+    checkUserRole();
+    renderExpenseTable();
+
+    showNotification(`Connected with Sepolia wallet: ${formatAddress(address, 4)}`, "success");
+    return true;
+  } catch (error) {
+    console.error("Private key connection error:", error);
+    showNotification(`Failed to connect with private key: ${error.message}`, "error");
+    return false;
+  }
+}
+
+function setupWalletListeners() {
+  if (!window._listenersBound && window.ethereum) {
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", () => window.location.reload());
+    window._listenersBound = true;
+  }
+}
+
+function handleAccountsChanged(accounts) {
+  if (accounts.length === 0) {
+    state.userAddress = null;
+    state.signer = null;
+    state.contract = null;
+    elements.connectBtnText.textContent = "Connect Wallet";
+    elements.roleBadge.classList.add("hidden");
+    checkUserRole();
+    renderExpenseTable();
+    updateNetworkDisplay("Sepolia (Public RPC)", true);
+    showNotification("Wallet disconnected. Reverted to public read-only mode.", "pending");
+  } else {
+    state.userAddress = accounts[0];
+    updateWalletDisplay(state.userAddress);
+    if (state.provider) {
+      state.provider.getSigner().then((signer) => {
+        state.signer = signer;
+        window.connectedSigner = signer;
+        window.userAddress = state.userAddress;
+        if (state.config?.contractAddress) {
+          state.contract = new ethers.Contract(state.config.contractAddress, state.abi, signer);
+        }
+        checkUserRole();
+        renderExpenseTable();
+      });
+    }
+  }
+}
+
+function updateWalletDisplay(address) {
+  elements.connectBtnText.textContent = formatAddress(address, 4);
+  elements.connectWalletBtn.title = `Connected: ${address}`;
+}
+
+function updateNetworkBadge(chainId) {
+  const dot = elements.networkBadge.querySelector(".status-dot");
+  dot.className = "status-dot";
+
+  if (chainId === SEPOLIA_CHAIN_ID) {
+    elements.networkName.textContent = "Sepolia Testnet";
+    dot.classList.add("active");
+  } else if (chainId === LOCAL_CHAIN_ID) {
+    elements.networkName.textContent = "Localhost Hardhat";
+    dot.classList.add("active");
+  } else {
+    elements.networkName.textContent = `Unsupported Network (${chainId})`;
+    dot.classList.add("danger");
+  }
+}
+
+function updateNetworkDisplay(name, isActive) {
+  elements.networkName.textContent = name;
+  const dot = elements.networkBadge.querySelector(".status-dot");
+  dot.className = `status-dot ${isActive ? "active" : ""}`;
+}
+
+/**
+ * 7. Submit Expense to Blockchain
+ * Strictly prompts wallet connection upon user submission.
  */
 async function handleSubmitExpense(e) {
   e.preventDefault();
-
-  if (!state.contract || !state.signer) {
-    showNotification("Please connect your wallet before submitting an expense.", "error");
-    return;
-  }
 
   const amountINR = parseFloat(elements.expenseAmount.value);
   const purpose = elements.expensePurpose.value.trim();
@@ -474,6 +600,14 @@ async function handleSubmitExpense(e) {
   if (purpose.length > 120) {
     showNotification("Purpose cannot exceed 120 characters.", "error");
     return;
+  }
+
+  // Ensure wallet is connected when user explicitly clicks submit
+  if (!state.signer || !state.contract) {
+    const connected = await ensureWalletConnected();
+    if (!connected) {
+      return;
+    }
   }
 
   // Convert INR to integer paise
@@ -517,7 +651,7 @@ async function handleSubmitExpense(e) {
       await triggerDatabaseSync(receipt.hash, newExpenseId, "SUBMIT");
     }
 
-    // Refresh UI
+    // Refresh UI using public read-only RPC or active contract
     await fetchContractData();
   } catch (err) {
     console.error("Submission failed:", err);
@@ -529,12 +663,16 @@ async function handleSubmitExpense(e) {
 }
 
 /**
- * 6. Approver Actions: Approve or Reject
+ * 8. Approver Actions: Approve or Reject
+ * Strictly prompts wallet connection upon user interaction.
  */
 async function handleDecision(expenseId, action) {
-  if (!state.contract || !state.signer) {
-    showNotification("Please connect your wallet.", "error");
-    return;
+  // Ensure wallet is connected when user clicks Approve or Reject
+  if (!state.signer || !state.contract) {
+    const connected = await ensureWalletConnected();
+    if (!connected) {
+      return;
+    }
   }
 
   if (!state.isApprover) {
@@ -570,7 +708,7 @@ async function handleDecision(expenseId, action) {
 }
 
 /**
- * 7. Serverless Database Sync Endpoint (/api/sync)
+ * 9. Serverless Database Sync Endpoint (/api/sync)
  */
 async function triggerDatabaseSync(txHash, expenseId, action) {
   try {
@@ -582,6 +720,7 @@ async function triggerDatabaseSync(txHash, expenseId, action) {
         expenseId,
         action,
         contractAddress: state.config?.contractAddress,
+        rpcUrl: getRpcUrl(),
       }),
     });
 
@@ -591,13 +730,11 @@ async function triggerDatabaseSync(txHash, expenseId, action) {
       if (data.databaseSynced) {
         showNotification(`Confirmed on-chain & Synced to Supabase database mirror!`, "success");
       } else {
-        // Distinguish confirmed tx from unconfigured DB
         console.info("Blockchain confirmed, database sync message:", data.message);
       }
     } else {
       const errData = await response.json().catch(() => ({}));
       console.warn("Sync endpoint returned error:", errData);
-      // Clearly distinguish confirmed blockchain tx from failed db sync
       if (errData.txConfirmedOnChain) {
         showNotification(
           `Notice: Confirmed on-chain, but database sync returned: ${errData.error || "Retry available"}`,
@@ -607,12 +744,11 @@ async function triggerDatabaseSync(txHash, expenseId, action) {
     }
   } catch (err) {
     console.warn("Could not reach /api/sync:", err);
-    // Don't panic the user because blockchain is authoritative
   }
 }
 
 /**
- * 8. Render Expense Table
+ * 10. Render Expense Table
  */
 function renderExpenseTable() {
   const tbody = elements.expenseTableBody;
@@ -662,7 +798,7 @@ function renderExpenseTable() {
 
       if (isPending) {
         if (!state.userAddress) {
-          actionsHtml = `<span class="action-hint">Connect wallet</span>`;
+          actionsHtml = `<span class="action-hint">Connect wallet to act</span>`;
         } else if (!state.isApprover) {
           actionsHtml = `<span class="action-hint">Approver only</span>`;
         } else if (isOwnExpense) {
@@ -749,7 +885,7 @@ function renderExpenseTable() {
 window.handleDecision = handleDecision;
 
 /**
- * 9. Utilities & Helpers
+ * 11. Utilities & Helpers
  */
 function parseStatus(code) {
   switch (code) {
@@ -811,4 +947,3 @@ function setSubmitting(isSubmitting) {
     elements.submitSpinner.classList.add("hidden");
   }
 }
-
