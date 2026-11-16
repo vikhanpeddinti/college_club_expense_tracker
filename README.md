@@ -87,7 +87,10 @@ Blockchain-Based College Club Expense Tracker/
 ├── test/
 │   └── ClubExpenseTracker.test.js  # 21 automated unit tests covering all edge cases
 ├── scripts/
-│   └── deploy.js                   # Deployment script (exports address & ABI to frontend)
+│   ├── deploy.js                   # Deployment script (exports address & ABI to frontend)
+│   ├── fundAccount.cjs             # Funds Member account with SepoliaETH for gas
+│   ├── submitExpense.cjs           # Maker workflow: Submits demo expense proposals on-chain
+│   └── approveExpense.cjs          # Checker workflow: Non-browser admin approval script
 ├── public/
 │   ├── index.html                  # Responsive one-page UI (cards, form, ledger table)
 │   ├── style.css                   # Modern CSS design, status badges, progress bar
@@ -230,9 +233,15 @@ Step 4: Approver Approves Member's ₹500 Expense (Browser or Terminal Script)
   │     As Wallet A, click green "Approve" button on Expense #1 -> Sign in MetaMask/Wallet
   │
   ├── OPTION B (Terminal Script - No Browser Extension Required):
-  │     Run in terminal: npx hardhat run scripts/approveExpense.js --network sepolia -- 1
+  │     Run in terminal: npm run approve:sepolia
+  │     (or: npx hardhat run scripts/approveExpense.cjs --network sepolia -- 1)
   │     └── Directly executes approveExpense(1) using admin private key from .env
   │     └── Prints caller, block number, remaining budget, and direct Sepolia Etherscan URL!
+  │
+  ├── MAKER-CHECKER TERMINAL SUITE:
+  │     1. Fund Member:  npm run fund:sepolia
+  │     2. Submit Maker: npm run submit:sepolia
+  │     3. Approve Exec: npm run approve:sepolia
   │
   └── Once mined:
         ├── Status updates to "Approved ✅"

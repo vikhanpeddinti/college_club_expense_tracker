@@ -4,10 +4,21 @@ dotenv.config();
 
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com";
 const SEPOLIA_PRIVATE_KEY = process.env.SEPOLIA_PRIVATE_KEY;
+const APPROVER_2_PRIVATE_KEY = process.env.APPROVER_2_PRIVATE_KEY;
 
-const accounts = SEPOLIA_PRIVATE_KEY && SEPOLIA_PRIVATE_KEY.length === 64
-  ? [`0x${SEPOLIA_PRIVATE_KEY}`]
-  : (SEPOLIA_PRIVATE_KEY && SEPOLIA_PRIVATE_KEY.startsWith("0x") ? [SEPOLIA_PRIVATE_KEY] : []);
+function formatPrivateKey(key) {
+  if (!key) return null;
+  const clean = key.trim();
+  if (clean.startsWith("0x") && clean.length === 66) return clean;
+  if (clean.length === 64) return `0x${clean}`;
+  return null;
+}
+
+const accounts = [];
+const primaryKey = formatPrivateKey(SEPOLIA_PRIVATE_KEY);
+if (primaryKey) accounts.push(primaryKey);
+const secondaryKey = formatPrivateKey(APPROVER_2_PRIVATE_KEY);
+if (secondaryKey) accounts.push(secondaryKey);
 
 /** @type import('hardhat/config').HardhatUserConfig */
 export default {

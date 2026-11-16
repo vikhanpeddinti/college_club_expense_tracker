@@ -8,8 +8,10 @@
     "test": "hardhat test",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
     "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
-    "approve:sepolia": "hardhat run scripts/approveExpense.js --network sepolia",
-    "approve:local": "hardhat run scripts/approveExpense.js --network localhost"
+    "fund:sepolia": "hardhat run scripts/fundAccount.cjs --network sepolia",
+    "submit:sepolia": "hardhat run scripts/submitExpense.cjs --network sepolia",
+    "approve:sepolia": "hardhat run scripts/approveExpense.cjs --network sepolia",
+    "approve:local": "hardhat run scripts/approveExpense.cjs --network localhost"
   },
   "keywords": [],
   "author": "",
