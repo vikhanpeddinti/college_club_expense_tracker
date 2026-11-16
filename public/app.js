@@ -113,6 +113,8 @@ function cacheElements() {
   elements.networkName = document.getElementById("networkName");
   elements.roleBadge = document.getElementById("roleBadge");
   elements.roleLabel = document.getElementById("roleLabel");
+  elements.formRoleBadge = document.getElementById("formRoleBadge");
+  elements.formRoleLabel = document.getElementById("formRoleLabel");
   elements.notificationBanner = document.getElementById("notificationBanner");
   elements.notifIcon = document.getElementById("notifIcon");
   elements.notifText = document.getElementById("notifText");
@@ -678,17 +680,35 @@ function checkUserRole() {
   } else {
     state.isApprover = false;
     elements.roleBadge.classList.add("hidden");
+    if (elements.formRoleBadge && elements.formRoleLabel) {
+      elements.formRoleBadge.className = "pill-member";
+      elements.formRoleLabel.textContent = "Role: Not Connected";
+    }
   }
 }
 
 function updateRoleDisplay(isApprover) {
   elements.roleBadge.classList.remove("hidden");
+  const roleText = isApprover
+    ? "👑 Role: Approver (Club Faculty / Lead)"
+    : "👥 Role: Club Member";
+
   if (isApprover) {
     elements.roleBadge.className = "badge badge-role approver";
-    elements.roleLabel.textContent = "👑 Role: Approver (Club Faculty / Lead)";
+    elements.roleLabel.textContent = roleText;
+
+    if (elements.formRoleBadge && elements.formRoleLabel) {
+      elements.formRoleBadge.className = "pill-member approver";
+      elements.formRoleLabel.textContent = roleText;
+    }
   } else {
     elements.roleBadge.className = "badge badge-role";
-    elements.roleLabel.textContent = "👥 Role: Club Member";
+    elements.roleLabel.textContent = roleText;
+
+    if (elements.formRoleBadge && elements.formRoleLabel) {
+      elements.formRoleBadge.className = "pill-member member";
+      elements.formRoleLabel.textContent = roleText;
+    }
   }
 }
 

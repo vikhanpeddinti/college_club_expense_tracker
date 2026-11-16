@@ -434,6 +434,20 @@ body {
   font-weight: 600;
   padding: 0.25rem 0.65rem;
   border-radius: 9999px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.pill-member.approver {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.pill-member.member {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
 }
 
 .form-grid {
