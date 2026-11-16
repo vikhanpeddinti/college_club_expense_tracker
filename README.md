@@ -225,8 +225,15 @@ Step 3: Self-Approval Prevention Demonstration
   └── Expense #2 appears with action: "Self-submission (Cannot self-approve)"
       └── KEY VIVA POINT: Approvers cannot approve their own financial claims.
 
-Step 4: Approver Approves Member's ₹500 Expense
-  ├── As Wallet A, click green "Approve" button on Expense #1 -> Sign in MetaMask
+Step 4: Approver Approves Member's ₹500 Expense (Browser or Terminal Script)
+  ├── OPTION A (In Browser):
+  │     As Wallet A, click green "Approve" button on Expense #1 -> Sign in MetaMask/Wallet
+  │
+  ├── OPTION B (Terminal Script - No Browser Extension Required):
+  │     Run in terminal: npx hardhat run scripts/approveExpense.js --network sepolia -- 1
+  │     └── Directly executes approveExpense(1) using admin private key from .env
+  │     └── Prints caller, block number, remaining budget, and direct Sepolia Etherscan URL!
+  │
   └── Once mined:
         ├── Status updates to "Approved ✅"
         ├── Budget Cards immediately update:
